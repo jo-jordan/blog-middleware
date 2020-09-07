@@ -105,11 +105,10 @@ func run(name string, arg ...string) *error {
 	return nil
 }
 
-func ResolveLocalRepo() error {
+func ResolveLocalRepo(root string) error {
 	// Read the local repo dir hierarchy
 	log.Printf("common.LocalDir(): %s \n", common.LocalDir)
 
-	root := common.LocalDir + "/notes"
 	var blacklist []string
 	m := make(map[string][]string)
 	// write the resolve result to local JSON file
@@ -126,22 +125,24 @@ func ResolveLocalRepo() error {
 			return nil
 		}
 
-		if info.IsDir() {
-			if !strings.HasPrefix(info.Name(), ".") {
-				if path != filepath.FromSlash(root) {
-					m[path] = []string{}
+		if nil != info {
+			if info.IsDir() {
+				if !strings.HasPrefix(info.Name(), ".") {
+					if path != filepath.FromSlash(root) {
+						m[path] = []string{}
+					}
+				} else {
+					blacklist = append(blacklist, info.Name())
 				}
 			} else {
-				blacklist = append(blacklist, info.Name())
-			}
-		} else {
-			for s, i := range m {
-				if strings.Contains(path, s) {
-					m[s] = append(i, path)
+				for s, i := range m {
+					if strings.Contains(path, s) {
+						m[s] = append(i, path)
+					}
 				}
 			}
 		}
-		log.Printf("path ==> %s", path)
+
 		return nil
 	})
 
@@ -150,7 +151,6 @@ func ResolveLocalRepo() error {
 		return err
 	}
 
-	log.Printf("%s", jsonString)
 	config := filepath.FromSlash(fmt.Sprintf("%s%s", common.LocalDir, "/config.json"))
 	err = ioutil.WriteFile(config, jsonString, 0644)
 	if nil != err {

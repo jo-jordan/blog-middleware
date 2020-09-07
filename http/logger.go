@@ -1,4 +1,4 @@
-package main
+package http
 
 import (
 	"log"
@@ -19,7 +19,7 @@ func Logger(inner http.Handler, name string) http.Handler {
 			w.Header().Add("Access-Control-Max-Age", "2000")
 		} else {
 			w.Header().Add("Access-Control-Max-Age", "86400")
-			w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+			//w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 			inner.ServeHTTP(w, r)
 
 			log.Printf(

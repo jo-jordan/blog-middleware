@@ -1,4 +1,4 @@
-package main
+package http
 
 import (
 	"blog-middleware/api"
@@ -17,14 +17,14 @@ type Routes []Route
 var routes = Routes{
 	Route{
 		"Sync From GitHub",
-		[]string{"GET", "OPTIONS"},
-		"/sync",
+		[]string{"POST", "OPTIONS"},
+		"/github/sync",
 		api.Pull,
 	},
 	Route{
 		"Initial",
 		[]string{"GET", "OPTIONS"},
-		"/init",
+		"/github/init",
 		api.Init,
 	},
 }

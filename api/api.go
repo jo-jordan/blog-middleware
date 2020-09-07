@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 )
 import "blog-middleware/entity"
 
@@ -20,24 +21,24 @@ func Pull(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// pull from my repo
-	dir := r.Form.Get("local-repo")
-	if !common.DirExists(dir) {
+	localRepo := r.Form.Get("local-repo")
+	if !common.DirExists(localRepo) {
 		w.WriteHeader(http.StatusBadRequest)
 		_, _ = w.Write([]byte("400 - Bad Request!"))
 		return
 	}
 
 	var commands []entity.Command
-	commands = append(commands, entity.Command{Name: "cd", Args: []string{ dir } })
-	commands = append(commands, entity.Command{Name: "git", Args: []string{"pull" } })
+	commands = append(commands, entity.Command{Name: "cd", Args: []string{localRepo}})
+	commands = append(commands, entity.Command{Name: "git", Args: []string{"pull"}})
 	err = service.RunMultipleCommands(commands)
 
 	if nil != err {
 		log.Printf("err: %s", err)
 	}
 
-
-
+	common.LocalDir = localRepo[:strings.LastIndex(localRepo, "/")]
+	err = service.ResolveLocalRepo(localRepo)
 
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte("200 - OK."))
@@ -61,9 +62,9 @@ func Init(w http.ResponseWriter, r *http.Request) {
 	}
 	common.LocalDir = dir
 	// resolve dirs
-	err = service.ResolveLocalRepo()
 
 	repo := r.Form.Get("repo")
+
 	if "" == repo || "" == dir {
 		w.WriteHeader(http.StatusBadRequest)
 		_, _ = w.Write([]byte("400 - Bad Request!"))
@@ -81,13 +82,16 @@ func Init(w http.ResponseWriter, r *http.Request) {
 	//defer cancel()
 
 	var commands []entity.Command
-	commands = append(commands, entity.Command{Name: "cd", Args: []string{dir } })
-	commands = append(commands, entity.Command{Name: "git", Args: []string{"clone", repo } })
+	commands = append(commands, entity.Command{Name: "cd", Args: []string{dir}})
+	commands = append(commands, entity.Command{Name: "git", Args: []string{"clone", repo}})
 	err = service.RunMultipleCommands(commands)
 
 	if nil != err {
 		log.Printf("err: %s", err)
 	}
+
+	root := common.LocalDir + "/" + common.RepoName
+	err = service.ResolveLocalRepo(root)
 
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(fmt.Sprintf("200 - OK")))
