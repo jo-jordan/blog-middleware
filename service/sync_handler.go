@@ -110,10 +110,12 @@ func ResolveLocalRepo(root string) error {
 	log.Printf("common.LocalDir(): %s \n", common.LocalDir)
 
 	var blacklist []string
-	m := make(map[string][]string)
+	m := make(map[string]entity.Category)
+	var r []entity.Category
 	// write the resolve result to local JSON file
 	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 
+		// Black list check
 		isInBlackList := false
 		for _, s := range blacklist {
 			if strings.Contains(path, s) {
@@ -125,19 +127,25 @@ func ResolveLocalRepo(root string) error {
 			return nil
 		}
 
+		// Info may be nil
 		if nil != info {
 			if info.IsDir() {
 				if !strings.HasPrefix(info.Name(), ".") {
 					if path != filepath.FromSlash(root) {
-						m[path] = []string{}
+						// Add category
+						m[info.Name()] = entity.Category{Name: info.Name(), Blogs: []entity.Blog{}}
 					}
 				} else {
 					blacklist = append(blacklist, info.Name())
 				}
 			} else {
-				for s, i := range m {
+				for s, cate := range m {
 					if strings.Contains(path, s) {
-						m[s] = append(i, path)
+						// Add blog to category
+						// https://edgeless.me/notes/about-me/resume.md
+						url := common.RootUrl + cate.Name + "/" + info.Name()
+						cate.Blogs = append(cate.Blogs, entity.Blog{Url: url, Name: info.Name()})
+						m[s] = cate
 					}
 				}
 			}
@@ -146,7 +154,10 @@ func ResolveLocalRepo(root string) error {
 		return nil
 	})
 
-	jsonString, err := json.Marshal(m)
+	for _, category := range m {
+		r = append(r, category)
+	}
+	jsonString, err := json.Marshal(r)
 	if nil != err {
 		return err
 	}
