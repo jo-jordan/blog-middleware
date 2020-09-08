@@ -27,4 +27,10 @@ var routes = Routes{
 		"/github/init",
 		api.Init,
 	},
+	Route{
+		"Network - Get Remote IP",
+		[]string{"GET", "OPTIONS"},
+		"/network/ip",
+		api.GetIP,
+	},
 }

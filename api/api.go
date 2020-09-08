@@ -5,6 +5,7 @@ import (
 	"blog-middleware/service"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"strings"
 )
@@ -75,9 +76,6 @@ func Init(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Repo Name: %s", url)
 	common.RepoName = url
 
-	//repoUrl := "https://github.com/lzjlxebr/leetcode.git"
-	//localDir := "/Users/lzjlxebr/temp"
-
 	//ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	//defer cancel()
 
@@ -95,4 +93,26 @@ func Init(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(fmt.Sprintf("200 - OK")))
+}
+
+func GetIP(w http.ResponseWriter, r *http.Request) {
+	clientIP := r.Header.Get("X-Forwarded-For")
+	clientIP = strings.TrimSpace(strings.Split(clientIP, ",")[0])
+	if clientIP == "" {
+		clientIP = strings.TrimSpace(r.Header.Get("X-Real-Ip"))
+	}
+	if clientIP != "" {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(clientIP))
+		return
+	}
+
+	if ip, _, err := net.SplitHostPort(strings.TrimSpace(r.RemoteAddr)); err == nil {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(ip))
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte("Unknown IP"))
 }
