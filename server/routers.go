@@ -1,7 +1,7 @@
-package http
+package server
 
 import (
-	"blog-middleware/api"
+	"github.com/lzjlxebr/blog-middleware/api"
 	"net/http"
 )
 

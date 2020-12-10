@@ -1,12 +1,12 @@
 package service
 
 import (
-	"blog-middleware/common"
-	"blog-middleware/entity"
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/bwmarrin/snowflake"
+	"github.com/lzjlxebr/blog-middleware/common"
+	"github.com/lzjlxebr/blog-middleware/entity"
 	"io/ioutil"
 	"log"
 	"os"
@@ -41,79 +41,17 @@ func RunMultipleCommands(commands []entity.Command) error {
 	return nil
 }
 
-// Multiple command line run logic:
-// entity.Command(name, args for name, "command1; command2; command3; ...")
-func runMultipleCommandsInContext(ctx context.Context, commands []entity.Command) *error {
-	var dir string
-	for _, command := range commands {
-		path, err := exec.LookPath(command.Name)
-		if err != nil {
-			log.Fatalf("installing %s is in your future", command.Name)
-			return &err
-		}
-		cmd := exec.CommandContext(ctx, path, command.Args...)
-		if strings.Contains(command.Name, "cd") {
-			dir = command.Args[0]
-		} else {
-			cmd.Dir = dir
-			if err := cmd.Run(); err != nil {
-				return &err
-			}
-			var out bytes.Buffer
-			cmd.Stdout = &out
-			log.Printf("command: %s, %q\r\n %s", command.Name, command.Args, out.String())
-		}
-	}
-	return nil
-}
-
-func runInContext(ctx context.Context, name string, arg ...string) *error {
-	path, err := exec.LookPath(name)
-	if err != nil {
-		log.Fatalf("installing %s is in your future", name)
-		return &err
-	}
-	log.Printf("%s is available at %s\n", name, path)
-	cmd := exec.CommandContext(ctx, name, arg...)
-
-	var out bytes.Buffer
-	cmd.Stdout = &out
-	if err := cmd.Run(); err != nil {
-		return &err
-	}
-	log.Printf("%s", out.String())
-	return nil
-}
-
-func run(name string, arg ...string) *error {
-	path, err := exec.LookPath(name)
-	if err != nil {
-		log.Fatalf("installing %s is in your future", name)
-		return &err
-	}
-	log.Printf("%s is available at %s\n", name, path)
-
-	cmd := exec.Command(path, arg...)
-	//cmd.Stdin = strings.NewReader("some input")
-	var out bytes.Buffer
-	cmd.Stdout = &out
-	err = cmd.Run()
-	if err != nil {
-		return &err
-	}
-	log.Printf("%s", out.String())
-	return nil
-}
-
 func ResolveLocalRepo(root string) error {
 	// Read the local repo dir hierarchy
 	log.Printf("common.LocalDir(): %s \n", common.LocalDir)
+	node, err := snowflake.NewNode(1)
+	common.ErrorBus(err)
 
 	var blacklist []string
-	m := make(map[string]entity.Category)
-	var r []entity.Category
+	blogsInTree := make(map[string]entity.Blog)
+	var blogsInList []entity.Blog
 	// write the resolve result to local JSON file
-	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+	err = filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 
 		// Black list check
 		isInBlackList := false
@@ -133,19 +71,29 @@ func ResolveLocalRepo(root string) error {
 				if !strings.HasPrefix(info.Name(), ".") {
 					if path != filepath.FromSlash(root) {
 						// Add category
-						m[info.Name()] = entity.Category{Name: info.Name(), Blogs: []entity.Blog{}}
+						blogsInTree[info.Name()] = entity.Blog{
+							ID:       uint64(node.Generate().Int64()),
+							ParentId: 0,
+							Type:     0,
+							Name:     info.Name(),
+						}
 					}
 				} else {
 					blacklist = append(blacklist, info.Name())
 				}
 			} else {
-				for s, cate := range m {
+				for s, cate := range blogsInTree {
 					if strings.Contains(path, s) {
 						// Add blog to category
 						// https://edgeless.me/notes/about-me/resume.md
 						url := common.RootUrl + cate.Name + "/" + info.Name()
-						cate.Blogs = append(cate.Blogs, entity.Blog{Url: url, Name: info.Name()})
-						m[s] = cate
+						cate.Children = append(cate.Children, entity.Blog{
+							ID:       uint64(node.Generate().Int64()),
+							ParentId: cate.ID,
+							Type:     1,
+							Name:     url,
+						})
+						blogsInTree[s] = cate
 					}
 				}
 			}
@@ -154,10 +102,10 @@ func ResolveLocalRepo(root string) error {
 		return nil
 	})
 
-	for _, category := range m {
-		r = append(r, category)
+	for _, category := range blogsInTree {
+		blogsInList = append(blogsInList, category)
 	}
-	jsonString, err := json.Marshal(r)
+	jsonString, err := json.Marshal(blogsInList)
 	if nil != err {
 		return err
 	}

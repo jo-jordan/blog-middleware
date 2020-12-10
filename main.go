@@ -1,13 +1,13 @@
 package main
 
 import (
-	http2 "blog-middleware/http"
+	"github.com/lzjlxebr/blog-middleware/server"
 	"log"
 	"net/http"
 )
 
 func main() {
-	router := http2.NewRouter()
+	router := server.NewRouter()
 
 	log.Fatal(http.ListenAndServe("127.0.0.1:8888", router))
 }

@@ -1,15 +1,15 @@
 package api
 
 import (
-	"blog-middleware/common"
-	"blog-middleware/service"
 	"fmt"
+	"github.com/lzjlxebr/blog-middleware/common"
+	"github.com/lzjlxebr/blog-middleware/service"
 	"log"
 	"net"
 	"net/http"
 	"strings"
 )
-import "blog-middleware/entity"
+import "github.com/lzjlxebr/blog-middleware/entity"
 
 // Pull will pull from my github repo to local, update my blogs
 func Pull(w http.ResponseWriter, r *http.Request) {
