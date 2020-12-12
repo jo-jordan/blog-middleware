@@ -5,7 +5,8 @@ type Blog struct {
 	ParentId uint64 `gorm:"column:parent_id"`
 	Type     uint   `gorm:"column:type"`
 	Name     string `gorm:"column:blog_name"`
-	Children []Blog `gorm:"_"`
+	Path     string `gorm:"column:blog_path"`
+	URL      string `gorm:"-"`
 }
 
 func (Blog) TableName() string {

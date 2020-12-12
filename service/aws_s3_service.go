@@ -15,8 +15,7 @@ import (
 
 func CreateSession(region string) *session.Session {
 	sess, err := session.NewSession(&aws.Config{
-		Region: aws.String(region),
-		// TODO
+		Region:      aws.String(region),
 		Credentials: credentials.NewStaticCredentials(common.ACID, common.AS, ""),
 		HTTPClient: common.NewHTTPClientWithSettings(common.HTTPClientSettings{
 			Connect:          5 * time.Second,
@@ -40,7 +39,16 @@ func CreateS3Client(region string) *s3.S3 {
 	return svc
 }
 
-func ListBuckets(svc *s3.S3) {
+func BatchDeleteObject(region string, objects []s3manager.BatchDeleteObject) {
+	sess := CreateSession(region)
+	deleter := s3manager.NewBatchDelete(sess)
+
+	iter := &s3manager.DeleteObjectsIterator{Objects: objects}
+	err := deleter.Delete(aws.BackgroundContext(), iter)
+	common.ErrorBus(err)
+}
+
+func ListBuckets(svc *s3.S3) []*s3.Bucket {
 	result, err := svc.ListBuckets(nil)
 	common.ErrorBus(err)
 	log.Println("Buckets:")
@@ -49,19 +57,25 @@ func ListBuckets(svc *s3.S3) {
 		fmt.Printf("* %s created on %s\n",
 			aws.StringValue(b.Name), aws.TimeValue(b.CreationDate))
 	}
+	return result.Buckets
 }
 
-func ListObject(svc *s3.S3, bucket string) {
+func ListObject(svc *s3.S3, bucket string) []string {
+
 	resp, err := svc.ListObjectsV2(&s3.ListObjectsV2Input{Bucket: aws.String(bucket)})
 	common.ErrorBus(err)
 
+	var buckets []string
 	for _, item := range resp.Contents {
 		fmt.Println("Name:         ", *item.Key)
 		fmt.Println("Last modified:", *item.LastModified)
 		fmt.Println("Size:         ", *item.Size)
 		fmt.Println("Storage class:", *item.StorageClass)
 		fmt.Println("")
+		buckets = append(buckets, *item.Key)
 	}
+
+	return buckets
 }
 
 func UploadObject(session *session.Session, bucket string, filename string) {
@@ -81,8 +95,9 @@ func UploadObject(session *session.Session, bucket string, filename string) {
 	fmt.Printf("Successfully uploaded %q to %q\n", filename, bucket)
 }
 
-func BatchUploadObject(session *session.Session, objects []s3manager.BatchUploadObject) {
-	uploader := s3manager.NewUploader(session)
+func BatchUploadObject(region string, objects []s3manager.BatchUploadObject) {
+	sess := CreateSession(region)
+	uploader := s3manager.NewUploader(sess)
 	iter := &s3manager.UploadObjectsIterator{Objects: objects}
 	err := uploader.UploadWithIterator(aws.BackgroundContext(), iter)
 	common.ErrorBus(err)

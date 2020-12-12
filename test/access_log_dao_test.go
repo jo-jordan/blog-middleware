@@ -1,6 +1,9 @@
 package test
 
 import (
+	"crypto/md5"
+	"encoding/binary"
+	"fmt"
 	"github.com/bwmarrin/snowflake"
 	"github.com/lzjlxebr/blog-middleware/common"
 	"github.com/lzjlxebr/blog-middleware/dao"
@@ -20,4 +23,12 @@ func TestAccessLogSave(t *testing.T) {
 		Type:       1110,
 		ResourceID: 110,
 	})
+}
+
+func TestStringParse(t *testing.T) {
+
+	bytes := []byte("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF")
+	u := binary.LittleEndian.Uint64(md5.New().Sum(bytes))
+
+	fmt.Println(u)
 }

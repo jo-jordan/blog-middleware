@@ -4,7 +4,9 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
+	"github.com/lzjlxebr/blog-middleware/common"
 	"github.com/lzjlxebr/blog-middleware/service"
+	"os"
 	"testing"
 )
 
@@ -31,16 +33,22 @@ func TestUploadObject(t *testing.T) {
 }
 
 func TestBatchUploadObject(t *testing.T) {
-	sess := service.CreateSession("ap-northeast-2")
+
+	file, err := os.Open("/tmp/edgeless-notes/notes/JavaScript/prop.md")
+	common.ErrorBus(err)
 
 	objects := []s3manager.BatchUploadObject{
 		{
 			Object: &s3manager.UploadInput{
-				Key:    aws.String("key"),
-				Bucket: aws.String("bucket"),
+				Key:    aws.String("/notes/JavaScript/prop.md"),
+				Bucket: aws.String(common.BucketName),
+				Body:   file,
+			},
+			After: func() error {
+				return file.Close()
 			},
 		},
 	}
 
-	service.BatchUploadObject(sess, objects)
+	service.BatchUploadObject(common.BucketRegion, objects)
 }

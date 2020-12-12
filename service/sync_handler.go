@@ -2,15 +2,17 @@ package service
 
 import (
 	"bytes"
-	"encoding/json"
-	"fmt"
-	"github.com/bwmarrin/snowflake"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"github.com/lzjlxebr/blog-middleware/common"
+	"github.com/lzjlxebr/blog-middleware/common/hashcode"
+	"github.com/lzjlxebr/blog-middleware/dao"
 	"github.com/lzjlxebr/blog-middleware/entity"
-	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"strings"
 )
@@ -20,12 +22,12 @@ import (
 func RunMultipleCommands(commands []entity.Command) error {
 	var dir string
 	for _, command := range commands {
-		path, err := exec.LookPath(command.Name)
+		lookPath, err := exec.LookPath(command.Name)
 		if err != nil {
 			log.Fatalf("installing %s is in your future", command.Name)
 			return err
 		}
-		cmd := exec.Command(path, command.Args...)
+		cmd := exec.Command(lookPath, command.Args...)
 		if strings.Contains(command.Name, "cd") {
 			dir = command.Args[0]
 		} else {
@@ -41,17 +43,25 @@ func RunMultipleCommands(commands []entity.Command) error {
 	return nil
 }
 
+func CloneRepoToLocal() {
+	var commands []entity.Command
+	commands = append(commands, entity.Command{Name: "cd", Args: []string{common.LocalDir}})
+	commands = append(commands, entity.Command{Name: "git", Args: []string{"clone", common.RepoURL}})
+	err := RunMultipleCommands(commands)
+
+	common.ErrorBus(err)
+}
+
 func ResolveLocalRepo(root string) error {
 	// Read the local repo dir hierarchy
 	log.Printf("common.LocalDir(): %s \n", common.LocalDir)
-	node, err := snowflake.NewNode(1)
-	common.ErrorBus(err)
 
 	var blacklist []string
 	blogsInTree := make(map[string]entity.Blog)
 	var blogsInList []entity.Blog
+
 	// write the resolve result to local JSON file
-	err = filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+	_ = filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 
 		// Black list check
 		isInBlackList := false
@@ -71,12 +81,15 @@ func ResolveLocalRepo(root string) error {
 				if !strings.HasPrefix(info.Name(), ".") {
 					if path != filepath.FromSlash(root) {
 						// Add category
-						blogsInTree[info.Name()] = entity.Blog{
-							ID:       uint64(node.Generate().Int64()),
+						curBlog := entity.Blog{
+							ID:       uint64(hashcode.String(info.Name())),
 							ParentId: 0,
 							Type:     0,
+							Path:     info.Name(),
 							Name:     info.Name(),
 						}
+						blogsInTree[info.Name()] = curBlog
+						blogsInList = append(blogsInList, curBlog)
 					}
 				} else {
 					blacklist = append(blacklist, info.Name())
@@ -86,14 +99,16 @@ func ResolveLocalRepo(root string) error {
 					if strings.Contains(path, s) {
 						// Add blog to category
 						// https://edgeless.me/notes/about-me/resume.md
-						url := common.RootUrl + cate.Name + "/" + info.Name()
-						cate.Children = append(cate.Children, entity.Blog{
-							ID:       uint64(node.Generate().Int64()),
+						pp := common.RootUrl + cate.Name + "/" + info.Name()
+						curBlog := entity.Blog{
+							ID:       uint64(hashcode.String(pp)),
 							ParentId: cate.ID,
 							Type:     1,
-							Name:     url,
-						})
+							Path:     pp,
+							Name:     info.Name(),
+						}
 						blogsInTree[s] = cate
+						blogsInList = append(blogsInList, curBlog)
 					}
 				}
 			}
@@ -102,19 +117,46 @@ func ResolveLocalRepo(root string) error {
 		return nil
 	})
 
-	for _, category := range blogsInTree {
-		blogsInList = append(blogsInList, category)
-	}
-	jsonString, err := json.Marshal(blogsInList)
-	if nil != err {
-		return err
-	}
+	// Persistence to MySQL
+	dao.BlogSaveAll(blogsInList)
 
-	config := filepath.FromSlash(fmt.Sprintf("%s%s", common.LocalDir, "/config.json"))
-	err = ioutil.WriteFile(config, jsonString, 0644)
-	if nil != err {
-		return err
+	// Sync to aws s3
+	svc := CreateS3Client(common.BucketRegion)
+	blogKeys := ListObject(svc, common.BucketName)
+
+	var blogDeleteObjects []s3manager.BatchDeleteObject
+	for _, key := range blogKeys {
+		blogDeleteObjects = append(blogDeleteObjects, s3manager.BatchDeleteObject{
+			Object: &s3.DeleteObjectInput{
+				Key:    aws.String(key),
+				Bucket: aws.String(common.BucketName),
+			},
+		})
 	}
+	// Delete all objects from bucket
+	BatchDeleteObject(common.BucketRegion, blogDeleteObjects)
+
+	var blogObjects []s3manager.BatchUploadObject
+	for _, blog := range blogsInList {
+		if blog.Type == 1 {
+			file, err := os.Open(path.Join(common.LocalDir, blog.Path))
+			common.ErrorBus(err)
+			blogObjects = append(blogObjects,
+				s3manager.BatchUploadObject{
+					Object: &s3manager.UploadInput{
+						Key:    aws.String(blog.Path),
+						Bucket: aws.String(common.BucketName),
+						Body:   file,
+					},
+					After: func() error {
+						return file.Close()
+					},
+				},
+			)
+		}
+	}
+	// Put
+	BatchUploadObject(common.BucketRegion, blogObjects)
 
 	return nil
 }

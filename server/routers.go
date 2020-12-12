@@ -16,16 +16,28 @@ type Routes []Route
 
 var routes = Routes{
 	Route{
-		"Sync From GitHub",
+		"Pull Notes From GitHub",
 		[]string{"POST", "OPTIONS"},
-		"/github/sync",
+		"/github/pull",
 		api.Pull,
 	},
 	Route{
-		"Initial",
+		"Get Notes",
 		[]string{"GET", "OPTIONS"},
-		"/github/init",
-		api.Init,
+		"/blogs",
+		api.BlogHandler,
+	},
+	Route{
+		"Get Notes",
+		[]string{"GET", "OPTIONS"},
+		"/blogs/{category}",
+		api.BlogHandler,
+	},
+	Route{
+		"Get Notes",
+		[]string{"GET", "OPTIONS"},
+		"/blogs/{category}/{id}",
+		api.BlogHandler,
 	},
 	Route{
 		"Network - Get Remote IP",
